@@ -1,0 +1,123 @@
+---
+title: "Practical Machine Learning Assignment"
+author: "Mahesh Kansakar"
+date: "June 05, 2016"
+output:
+  html_document:
+    toc: yes
+  pdf_document:
+    toc: yes
+  word_document:
+    toc: yes
+---
+###Introduction
+Using devices such as Jawbone Up, Nike FuelBand, and Fitbit it is now possible to collect a large amount of data about personal activity relatively inexpensively. These type of devices are part of the quantified self movement - a group of enthusiasts who take measurements about themselves regularly to improve their health, to find patterns in their behavior, or because they are tech geeks. One thing that people regularly do is quantify how much of a particular activity they do, but they rarely quantify how well they do it. In this project, your goal will be to use data from accelerometers on the belt, forearm, arm, and dumbell of 6 participants. They were asked to perform barbell lifts correctly and incorrectly in 5 different ways. More information is available from the website here: http://groupware.les.inf.puc-rio.br/har (see the section on the Weight Lifting Exercise Dataset).
+
+###Project
+The goal of project is to predict the manner in which they did the exercise. The "classe" variable in the training set will be used to model and predict the test dataset. There will be two model that will be used to model the train dataset. At the end the best prediction model will be apply to predict 20 different test cases.
+
+
+```{r, message=F, warning=F}
+library(ggplot2)
+library(caret)
+library(randomForest)
+library(rpart)
+library(knitr)
+set.seed(3332)
+```
+
+###Get read and clean data
+```{r, message=F, warning=F}
+if (!file.exists("trainFile")) {
+  download.file("https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv", destfile="trainFile", method="libcurl")
+}
+
+if (!file.exists("testFile")) {
+  download.file("https://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv", destfile="testFile", method="libcurl")
+}
+```
+The dataset has many missing values like "NA" and "#DIV/0!". Remove these values.
+```{r, message=F, warning=F}
+train <- read.csv("trainFile", na.strings=c("NA","#DIV/0!",""), header = T)
+test <- read.csv("testFile", na.strings=c("NA","#DIV/0!",""), header = T)
+
+#Check the no. of rows and cols
+dim(train)
+dim(test)
+```
+The data frame has 19622 rows and 160 columns. Most of these columns has NA which need to removed from data frame before further analysis can be done. So remove all the columns that has more than 19000 rows NA. Simalarly remove the columns with most of the row NA in test dataset as well.
+
+```{r, message=F, warning=F}
+#Get rid of NA in train dataset
+NullCols <- is.na(train)
+GetRidNullCols = which(colSums(NullCols)>19000)
+train <- train[,-GetRidNullCols]
+dim(train)
+#Get ride of NA from test dataset
+NullCols <- is.na(test)
+GetRidNullCols = which(colSums(NullCols)>19)
+test <- test[,-GetRidNullCols]
+dim(test)
+
+```
+
+Further first seven columns are not need in analysis, so get rid of them as well.
+
+```{r, message=F, warning=F}
+#Further clean up in train data set
+train <- train[, -(1:7)]
+dim(train)
+
+#Further clean up in train data set
+test <- test[, -(1:7)]
+dim(test)
+
+```
+After this data cleaning our dataset contains 53 variables, down from 160,
+
+
+###Prediction Models
+One of the column variable "Classe" has A, B, C, D and E values where A is correct exercise style and remaining B C D E are classified as wrong exercises. Now split the train dataset to 6:4 ratio for the cross validation of the result. This ratio will be based upon the "classe" column.
+
+```{r, message=F, warning=F}
+inTrain <- createDataPartition(y=train$classe, p=0.6, list=FALSE)
+
+mytrain <- train[inTrain,]
+mytest <- train[-inTrain,]
+```
+
+Here two methods will be applied to model the train dataset and best one will applied to test dataset for the quiz.
+
+*Random Forests
+```{r, message=F, warning=F}
+controlRF <- trainControl(method="cv", number=3, verboseIter=FALSE)
+FitRandForest <- train(classe ~ ., data=mytrain, method="rf", trControl=controlRF)
+FitRandForest$finalModel
+
+predictRandForest <- predict(FitRandForest, newdata=mytest)
+cmRandForest <- confusionMatrix(predictRandForest, mytest$classe)
+cmRandForest
+```
+The Accuracy is:
+```{r, message=F, warning=F}
+round(cmRandForest$overall['Accuracy'], 4)
+```
+*Decision Tree
+```{r, message=F, warning=F}
+FitDecTree <- rpart(classe ~ ., data=mytrain, method="class")
+predictDecTree <- predict(FitDecTree, newdata=mytest, type="class")
+cmDecTree <- confusionMatrix(predictDecTree, mytest$classe)
+cmDecTree
+```
+The accuracy is:
+```{r, message=F, warning=F}
+round(cmDecTree$overall['Accuracy'], 4)
+```
+
+###Predicting Results on the test dataset
+From above Random Forests gave more accuracy in the myTest dataset. So we apply Random Forests model to the original test dataset, one that is downloaded above.
+```{r, message=F, warning=F}
+results <- predict(FitRandForest, newdata=test)
+results
+```
+Above is the output of the prediction by applying the best model that described the best above.
